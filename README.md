@@ -311,5 +311,5 @@ The system posts live updates to ThingSpeak under five organized data channels:
 This project is open-source and available under the [MIT License](LICENSE).
 
 ## 👤 Author
-**Salman Masood**
+**Salman Mohammed**
 - GitHub: [@salmanm-11](https://github.com/salmanm-11)
