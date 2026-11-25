@@ -1,0 +1,95 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include "DHT.h"
+
+// -------------------- Pin Definitions --------------------
+#define DHTPIN 2
+#define DHTTYPE DHT11
+
+#define SOIL_PIN A0
+#define SOLAR_PIN A1
+#define RELAY_PIN 7
+
+// -------------------- Calibration --------------------
+// Replace with your measured values:
+// ADC reading when soil is fully wet
+#define SOIL_WET 229  
+// ADC reading when soil is dry / in air
+#define SOIL_DRY 674  
+
+// -------------------- Objects --------------------
+DHT dht(DHTPIN, DHTTYPE);
+LiquidCrystal_I2C lcd(0x27, 16, 2); // Change to 0x3F if needed
+
+// -------------------- Setup --------------------
+void setup() {
+  Serial.begin(9600);
+  dht.begin();
+
+  pinMode(RELAY_PIN, OUTPUT);
+  digitalWrite(RELAY_PIN, HIGH); // Relay OFF initially
+
+  lcd.init();
+  lcd.backlight();
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Smart Irrigation");
+  delay(1500);
+}
+
+// -------------------- Main Loop --------------------
+void loop() {
+  // 1. Read sensors
+  int soilADC  = analogRead(SOIL_PIN);    
+  float temp   = dht.readTemperature();   
+  float hum    = dht.readHumidity();      
+  int solarADC = analogRead(SOLAR_PIN);   
+
+  // Handle DHT errors → replace nan with 0
+  if (isnan(temp)) temp = 0;
+  if (isnan(hum))  hum  = 0;
+
+  // 2. Convert soil ADC to % (0=dry, 100=wet)
+  float soilPercent = map(soilADC, SOIL_DRY, SOIL_WET, 0, 100);
+  if (soilPercent > 100) soilPercent = 100;
+  if (soilPercent < 0)   soilPercent = 0;
+
+  // 3. Convert solar ADC to %
+  float solarPercent = (solarADC / 1023.0) * 100.0;
+
+  // 4. Display on LCD
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Soil:");
+  lcd.print((int)soilPercent);
+  lcd.print("% ");
+  lcd.print("Sun:");
+  lcd.print((int)solarPercent);
+  lcd.print("%");
+
+  lcd.setCursor(0, 1);
+  lcd.print("T:");
+  lcd.print((int)temp);
+  lcd.print("C H:");
+  lcd.print((int)hum);
+  lcd.print("%");
+
+  // 5. Send data to Python
+  Serial.print("SOIL,");   Serial.print((int)soilPercent);
+  Serial.print(",TEMP,");  Serial.print((int)temp);
+  Serial.print(",HUM,");   Serial.print((int)hum);
+  Serial.print(",SOLAR,"); Serial.println(solarADC);
+
+  // 6. Check for Python command
+  if (Serial.available() > 0) {
+    String command = Serial.readStringUntil('\n');
+    command.trim();
+    if (command == "ON") {
+      digitalWrite(RELAY_PIN, LOW); // Relay ON
+    } else if (command == "OFF") {
+      digitalWrite(RELAY_PIN, HIGH); // Relay OFF
+    }
+  }
+
+  delay(2000);
+}

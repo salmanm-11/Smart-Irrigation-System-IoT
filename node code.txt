@@ -1,0 +1,84 @@
+#include <ESP8266WiFi.h>
+#include <WiFiClient.h>
+
+// -------- WiFi Details --------
+const char* ssid = "Tenda_B6ABF0";   // ⚠️ use 2.4GHz WiFi
+const char* pass = "Psk@1964";
+
+// -------- ThingSpeak --------
+const char* server = "api.thingspeak.com";
+String apiKey = "L1VVYU7W3W5QHYIW";   // <-- paste your Write API Key here
+
+WiFiClient client;
+String incomingData = "";
+
+void setup() {
+  Serial.begin(115200);
+  WiFi.begin(ssid, pass);
+
+  Serial.print("Connecting to WiFi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.print(".");
+  }
+  Serial.println("\n✅ WiFi connected!");
+}
+
+void loop() {
+  // Check if data is coming from Serial (Python/Arduino)
+  while (Serial.available()) {
+    char c = Serial.read();
+    if (c == '\n') {
+      processData(incomingData);
+      incomingData = "";
+    } else {
+      incomingData += c;
+    }
+  }
+}
+
+// --------- Parse data from Serial & Send to ThingSpeak ---------
+void processData(String data) {
+  // Example data format:
+  // SOIL,45.2,TEMP,33.1,HUM,62.0,SOLAR,12.3,PUMP,OFF
+
+  float soil = 0, temp = 0, hum = 0, solar = 0;
+  String pump = "OFF";
+  int idx;
+
+  if ((idx = data.indexOf("SOIL,")) >= 0) {
+    soil = data.substring(idx + 5, data.indexOf(",", idx + 5)).toFloat();
+  }
+  if ((idx = data.indexOf("TEMP,")) >= 0) {
+    temp = data.substring(idx + 5, data.indexOf(",", idx + 5)).toFloat();
+  }
+  if ((idx = data.indexOf("HUM,")) >= 0) {
+    hum = data.substring(idx + 4, data.indexOf(",", idx + 4)).toFloat();
+  }
+  if ((idx = data.indexOf("SOLAR,")) >= 0) {
+    solar = data.substring(idx + 6, data.indexOf(",", idx + 6)).toFloat();
+  }
+  if ((idx = data.indexOf("PUMP,")) >= 0) {
+    pump = data.substring(idx + 5);
+    pump.trim();   // remove unwanted spaces or \n
+  }
+
+  // -------- Send Data to ThingSpeak --------
+  if (client.connect(server, 80)) {
+    String url = "/update?api_key=" + apiKey +
+                 "&field1=" + String(soil) +
+                 "&field2=" + String(temp) +
+                 "&field3=" + String(hum) +
+                 "&field4=" + String(solar) +
+                 "&field5=" + pump;
+
+    client.print(String("GET ") + url + " HTTP/1.1\r\n" +
+                 "Host: " + server + "\r\n" +
+                 "Connection: close\r\n\r\n");
+
+    Serial.println("📡 Data sent to ThingSpeak: " + url);
+    client.stop();
+  } else {
+    Serial.println("❌ Connection failed!");
+  }
+}

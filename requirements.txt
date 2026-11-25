@@ -1,0 +1,6 @@
+pyserial
+joblib
+pandas
+numpy
+scikit-learn
+tqdm
